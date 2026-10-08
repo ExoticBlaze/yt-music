@@ -1,0 +1,24 @@
+html,
+body {
+  margin: 0;
+  background: transparent;
+  color-scheme: dark;
+}
+#native-toast {
+  box-sizing: border-box;
+  margin: 4px;
+  padding: 14px 20px;
+  height: 48px;
+  border: 1px solid #ff434f;
+  border-radius: 14px;
+  background: #242424;
+  color: #fff;
+  font:
+    12px 'Segoe UI',
+    system-ui,
+    sans-serif;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

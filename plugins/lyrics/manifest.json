@@ -1,0 +1,21 @@
+{
+  "id": "lyrics",
+  "name": "Lyrics",
+  "version": "1.2.0",
+  "author": "YTMusic+",
+  "main": "index.js",
+  "icon": "lyrics",
+  "ytmusicPlus": ">=1.2.0",
+  "description": "Find the words. Synced lyrics, local LRC files, translations, and a little room to sing along.",
+  "permissions": [
+    "player.read",
+    "player.control",
+    "ui.inject",
+    "ui.overlay",
+    "settings.read",
+    "settings.write",
+    "network",
+    "filesystem"
+  ],
+  "networkDomains": ["lrclib.net"]
+}

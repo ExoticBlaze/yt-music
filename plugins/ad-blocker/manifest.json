@@ -1,0 +1,11 @@
+{
+  "id": "ad-blocker",
+  "name": "Ad Blocker",
+  "version": "1.1.0",
+  "author": "YTMusic+",
+  "main": "index.js",
+  "icon": "shield",
+  "ytmusicPlus": ">=1.4.1",
+  "description": "Filter playback ads before songs start, skip remaining player ads, and block display-ad requests.",
+  "permissions": ["web.blocking", "ui.inject", "ui.overlay", "settings.read", "settings.write"]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "listen-together",
+  "name": "Listen Together",
+  "version": "1.0.1",
+  "author": "YTMusic+",
+  "main": "index.js",
+  "icon": "rooms",
+  "ytmusicPlus": ">=1.0.0",
+  "description": "Same song. Same moment. Private rooms with friends, shared queues, and playback that stays in sync.",
+  "permissions": [
+    "player.read",
+    "player.control",
+    "queue.read",
+    "queue.modify",
+    "ui.inject",
+    "ui.overlay",
+    "settings.read",
+    "clipboard",
+    "rooms"
+  ]
+}

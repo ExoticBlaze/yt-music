@@ -1,0 +1,11 @@
+{
+  "id": "custom-css",
+  "name": "Custom CSS",
+  "version": "1.0.0",
+  "author": "YTMusic+",
+  "main": "index.js",
+  "icon": "code",
+  "ytmusicPlus": ">=1.0.0",
+  "description": "The finishing touch, written by you. Live CSS editing for the real YouTube Music interface.",
+  "permissions": ["ui.inject", "ui.overlay", "settings.read", "settings.write", "filesystem"]
+}

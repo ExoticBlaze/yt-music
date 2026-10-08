@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: ytmusic-plus-room-relay
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      - key: YTM_ROOM_HOST
+        value: '0.0.0.0'

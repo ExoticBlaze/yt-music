@@ -1,0 +1,18 @@
+{
+  "id": "discord-presence",
+  "name": "Discord Presence",
+  "version": "1.0.0",
+  "author": "YTMusic+",
+  "main": "index.js",
+  "icon": "discord",
+  "ytmusicPlus": ">=1.0.0",
+  "description": "Let your friends see what is on repeat. Song details and elapsed time, with privacy controls.",
+  "permissions": [
+    "player.read",
+    "ui.inject",
+    "ui.overlay",
+    "settings.read",
+    "settings.write",
+    "presence"
+  ]
+}

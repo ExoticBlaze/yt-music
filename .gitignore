@@ -1,0 +1,10 @@
+node_modules/
+dist/
+release/
+coverage/
+.smoke-data/
+.probe-data/
+*.log
+.env
+.npm-cache/
+plugin-sdk/dist/

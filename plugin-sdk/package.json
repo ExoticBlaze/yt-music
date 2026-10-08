@@ -1,0 +1,22 @@
+{
+  "name": "@ytmusic-plus/plugin-sdk",
+  "version": "1.4.2",
+  "type": "module",
+  "types": "dist/plugin-sdk/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/plugin-sdk/index.d.ts",
+      "default": "./empty.js"
+    }
+  },
+  "files": [
+    "dist",
+    "empty.js",
+    "README.md"
+  ],
+  "description": "The typed capability API for YTMusic+ plugins",
+  "license": "MIT",
+  "dependencies": {
+    "zod": "^4.1.12"
+  }
+}

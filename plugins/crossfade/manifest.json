@@ -1,0 +1,18 @@
+{
+  "id": "crossfade",
+  "name": "Crossfade",
+  "version": "1.0.0",
+  "author": "YTMusic+",
+  "main": "index.js",
+  "icon": "crossfade",
+  "ytmusicPlus": ">=1.4.0",
+  "description": "Blend the end of a song into the next with an adjustable crossfade.",
+  "permissions": [
+    "audio.crossfade",
+    "player.control",
+    "ui.inject",
+    "ui.overlay",
+    "settings.read",
+    "settings.write"
+  ]
+}

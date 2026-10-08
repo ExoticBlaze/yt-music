@@ -1,0 +1,20 @@
+{
+  "id": "example-plugin",
+  "name": "Plugin Playground",
+  "version": "1.0.0",
+  "description": "A small, complete SDK example. Track events, a panel, saved settings, commands, and notifications.",
+  "author": "YTMusic+",
+  "main": "index.js",
+  "ytmusicPlus": ">=1.0.0",
+  "icon": "puzzle",
+  "permissions": [
+    "player.read",
+    "player.control",
+    "ui.inject",
+    "ui.overlay",
+    "settings.read",
+    "settings.write",
+    "notifications",
+    "clipboard"
+  ]
+}

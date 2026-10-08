@@ -1,0 +1,11 @@
+{
+  "id": "themes",
+  "name": "Themes",
+  "version": "1.0.0",
+  "author": "YTMusic+",
+  "main": "index.js",
+  "icon": "theme",
+  "ytmusicPlus": ">=1.0.0",
+  "description": "A different atmosphere for every mood. Accent colors, theme packages, and softer surfaces.",
+  "permissions": ["ui.inject", "ui.overlay", "settings.read", "settings.write", "filesystem"]
+}
