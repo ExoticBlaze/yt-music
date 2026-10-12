@@ -163,6 +163,8 @@ export function createContext(manifest: PluginManifest): {
     },
     rooms: {
       send: (message) => call({ type: 'rooms.send', message }),
+      startInternet: (name) => call({ type: 'rooms.startInternet', name }),
+      joinInvite: (invite, name) => call({ type: 'rooms.joinInvite', invite, name }),
       onUpdate: (callback) => on<RoomSnapshot>('roomUpdated', callback),
       disconnect: () => call({ type: 'rooms.disconnect' }),
     },

@@ -6,6 +6,7 @@ export function registerAppScheme(): void {
   protocol.registerSchemesAsPrivileged([
     { scheme: 'ytm-app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
     { scheme: 'ytm-plugin', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+    { scheme: 'ytm-peer', privileges: { standard: true, secure: true, supportFetchAPI: true } },
   ]);
 }
 export function serveApp(root: string): void {

@@ -1,15 +1,15 @@
-# Listen Together: internet relay setup
+# Listen Together: optional internet relay setup
 
 This directory is a standalone Node relay. It carries room codes, roles, song IDs and playback timing. Everyone plays music through their own YouTube Music session. Upload only this directory's files when hosting it; your desktop app/profile is unnecessary.
 
 ## Host on Render
 
-1. Create a GitHub repository and put `relay.cjs`, `package.json`, `package-lock.json` and `render.yaml` in its root. This hosting bundle contains no account or music profile data.
-2. Sign in to Render and choose **New → Blueprint**. Connect that repository, review the single web service and its Free plan, then create it. The supplied configuration installs the relay's dependencies, starts it and binds to Render's assigned `PORT` on `0.0.0.0`.
+1. Create a GitHub repository and put `relay.cjs`, `package.json`, `package-lock.json` and `render.yaml` from the relay-only hosting bundle in its root. This bundle contains no account or music profile data.
+2. In Render, create a Blueprint from that repository, review the single web service and its Free plan, then create it. The supplied configuration installs the relay's dependencies, starts it and binds to Render's assigned `PORT` on `0.0.0.0`.
 3. Wait for the service to show **Live**. Open its actual HTTPS URL. The page should show `{"service":"YTMusic+ synchronization relay","version":1}`.
 4. Copy the service's URL and change the starting `https://` to `wss://`. For example, an assigned URL of `https://your-actual-service.onrender.com` becomes `wss://your-actual-service.onrender.com`. Use the real assigned address, not this example.
 5. In YTMusic+, everyone opens **Settings → Listen Together** and enters that same address under **Relay WebSocket URL**, then sets their display name. The automatic local-start option only affects the local default URL.
-6. The host starts a song, opens **Listen Together** and clicks **Create room**, then **Copy invite code**. Friends open the same panel, enter the code and click **Join room**.
+6. The host starts a song, opens **Listen Together** and clicks **Create room**, then **Copy invite**. Friends open the same panel, paste the full invite and click **Join room**. A code alone also works when everyone configured the same relay URL.
 
 Render supports public secure WebSockets and supplies HTTPS for its service URL. Its Free plan has usage limits and sleeps after 15 minutes without incoming HTTP/WebSocket traffic. Waking a sleeping service can take about a minute: open its HTTPS page and wait for the JSON health response before creating/joining a room. The relay keeps rooms in memory; a restart, redeploy or sleep loses existing rooms, so create a new room afterward. Keep one service instance so everyone uses the same room registry.
 

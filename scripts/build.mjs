@@ -13,7 +13,7 @@ await build({
   format: 'cjs',
   packages: 'external',
 });
-for (const entry of ['preload', 'music', 'plugin', 'toast']) {
+for (const entry of ['preload', 'music', 'plugin', 'toast', 'peer']) {
   if (!existsSync(`src/preload/${entry}.ts`)) continue;
   await build({
     ...shared,
@@ -32,7 +32,7 @@ await build({
   format: 'cjs',
   packages: 'external',
 });
-for (const entry of ['renderer', 'plugin-runtime']) {
+for (const entry of ['renderer', 'plugin-runtime', 'peer-runtime']) {
   if (!existsSync(`src/${entry}/index.ts`)) continue;
   await build({
     ...shared,

@@ -85,6 +85,11 @@ export const roomSnapshotSchema = z.object({
   serverTime: z.number().finite(),
   clockOffset: z.number().finite().default(0),
   error: z.string().max(500).optional(),
+  inviteURL: z.string().max(2048).optional(),
+  internetHost: z.boolean().optional(),
+  invite: z.string().max(2048).optional(),
+  transport: z.enum(['peerjs', 'websocket']).optional(),
+  peerRoute: z.enum(['direct', 'relay']).optional(),
 });
 export type RoomSnapshot = z.infer<typeof roomSnapshotSchema>;
 export const roomServerMessageSchema = z.discriminatedUnion('type', [

@@ -13,7 +13,7 @@ src/main/                 Native app lifecycle and privileged services
   blocking/               Session request filtering and a worker for EasyList compilation
   presence/               Bounded Discord IPC framing and connection
   tray/                   Tray actions
-  updater/                User-confirmed update flow
+  updater/                GitHub update checks/downloads and confirmed restart
   logging/                Redacted, bounded, structured log streams
 src/preload/              Four individually bundled sandbox preloads
   integration/            All YouTube-specific selectors, detection and DOM controls
@@ -102,7 +102,20 @@ npm run package
 
 `scripts/build.mjs` produces CJS for Electron main/preloads and browser ESM for local UI/plugin hosts/plugins. Sandbox preloads are self-contained bundles. The SDK build emits all dependent declarations under its own package; run `npm pack` in `plugin-sdk/` to distribute it.
 
-`electron-builder` configures NSIS, DMG and AppImage. Do not publish development binaries as signed production releases. Set signing credentials using the builder's platform-specific environment/configuration, set the Windows publisher identity, and configure `YTM_UPDATE_URL` with an HTTPS generic feed. Publish its update metadata and matching signed artifacts. `UpdateService` disables automatic downloading/installing and asks before downloading/restarting. A missing feed leaves the app runnable with manual updates.
+`electron-builder` configures Windows NSIS, macOS DMG + ZIP and Linux AppImage. `build.publish` embeds the public `ExoticBlaze/yt-music` GitHub provider in `resources/app-update.yml`; installed users need no GitHub token or environment variable. The repository and release assets must be publicly accessible. `YTM_UPDATE_URL` remains an optional HTTPS generic-feed override without embedded credentials.
+
+Automatic updates default to enabled and can be disabled in **Settings → General**. Packaged copies check after 15 seconds and every six hours, download newer stable versions, then ask before restarting. The updater owns download scheduling (`autoDownload = false`) and disables install-on-quit, prereleases and downgrades. Manual checks ask before downloading when automatic updates are off. **Later** retains the downloaded update; a subsequent manual check offers installation without another download. Plugins, rooms and native services shut down before the installer starts, and close-to-tray is bypassed during installation. Offline/background errors are logged without interrupting playback; manual checks report failures. Development and smoke runs do not automatically check or update. Linux updates require running the actual AppImage.
+
+### Publish a Windows update
+
+1. Set the same stable version in `package.json`, `package-lock.json` (including `packages[""].version`) and `src/shared/constants/version.ts`. Use a version newer than the last published installer.
+2. Commit the release changes and push a tag matching that version, for example `v1.4.5` for version `1.4.5`. The [Windows release workflow](.github/workflows/release.yml) runs `npm ci`, validates all version fields, runs tests/build, then packages and uploads with `electron-builder`.
+3. Open the draft under [GitHub Releases](https://github.com/ExoticBlaze/yt-music/releases). Verify that it includes the matching `YTMusic+ Setup` `.exe`, `.exe.blockmap` and `latest.yml`. Test the installer, then publish the draft as a stable release. Drafts and prereleases are excluded from automatic updates. Keep metadata and binaries from the same build together.
+4. Install the first updater-enabled build manually on older installations. On a later release, verify the installed previous version downloads the update, **Later** keeps playback running, and **Restart and install** reopens the new version with settings retained.
+
+The workflow uses GitHub's job-scoped `GITHUB_TOKEN` with `contents: write`; no personal access token is stored or shipped. Actions must be enabled for the repository. Optional repository secrets `CSC_LINK` (certificate URL or base64 certificate) and `CSC_KEY_PASSWORD` enable Windows certificate signing. Configure a publisher identity consistent across releases when signing is enabled. Without signing credentials, the installer is unsigned; do not describe it as a signed release.
+
+`npm run package` always uses `--publish never`. It still generates update metadata for inspection but does not create a release. The checked-in workflow builds Windows x64. macOS and Linux require builds on their own platforms and upload of their matching update metadata/artifacts to the same release; macOS updates require a signed app and ZIP target. See [electron-builder's auto-update documentation](https://www.electron.build/v26/docs/features/auto-update/) and [GitHub publish configuration](https://www.electron.build/v26/docs/publish/).
 
 ## Verification boundaries
 

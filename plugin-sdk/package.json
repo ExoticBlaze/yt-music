@@ -1,6 +1,6 @@
 {
   "name": "@ytmusic-plus/plugin-sdk",
-  "version": "1.4.2",
+  "version": "1.4.4",
   "type": "module",
   "types": "dist/plugin-sdk/index.d.ts",
   "exports": {

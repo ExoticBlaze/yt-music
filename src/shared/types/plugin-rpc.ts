@@ -75,6 +75,12 @@ export const pluginCallSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('rooms.send'), message: roomClientMessageSchema }),
   z.object({ type: z.literal('rooms.disconnect') }),
+  z.object({ type: z.literal('rooms.startInternet'), name: z.string().min(1).max(40) }),
+  z.object({
+    type: z.literal('rooms.joinInvite'),
+    invite: z.string().max(2048),
+    name: z.string().min(1).max(40),
+  }),
   z.object({ type: z.literal('blocking.status') }),
   z.object({ type: z.literal('blocking.enable'), enabled: z.boolean() }),
   z.object({ type: z.literal('blocking.update') }),

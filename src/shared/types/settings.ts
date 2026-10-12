@@ -3,8 +3,12 @@ import { z } from 'zod';
 export const settingsSchema = z.object({
   version: z.literal(1).default(1),
   general: z
-    .object({ closeToTray: z.boolean().default(true), launchAtLogin: z.boolean().default(false) })
-    .default({ closeToTray: true, launchAtLogin: false }),
+    .object({
+      closeToTray: z.boolean().default(true),
+      launchAtLogin: z.boolean().default(false),
+      autoUpdates: z.boolean().default(true),
+    })
+    .default({ closeToTray: true, launchAtLogin: false, autoUpdates: true }),
   appearance: z
     .object({
       accent: z

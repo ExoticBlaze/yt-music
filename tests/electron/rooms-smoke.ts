@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, clipboard } from 'electron';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -9,6 +9,7 @@ import type { PluginHost } from '../../src/main/plugins/plugin-host';
 import type { OverlayRegistry } from '../../src/main/plugins/overlay-registry';
 import type { UINode } from '../../src/shared/types/ui';
 import type { PlayerCommand } from '../../src/shared/types/music';
+import { parseRoomInvite } from '../../src/shared/types/room-invite';
 
 const pluginId = 'listen-together';
 const firstTrack = 'dQw4w9WgXcQ';
@@ -77,8 +78,9 @@ export async function runRoomPeer(
   music: MusicContext,
   plugins: PluginHost,
   overlay: OverlayRegistry,
-  code: string,
+  input: string,
 ): Promise<void> {
+  const code = input.startsWith('ytmusic-plus:') ? parseRoomInvite(input).code : input;
   assert(/^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(code));
   await prepare(desktop, plugins);
   const path = join(app.getPath('userData'), 'room-peer-state.json');
@@ -94,7 +96,7 @@ export async function runRoomPeer(
     const sync = panel.find(
       (node) =>
         node.type === 'text' &&
-        /^(Connected|Synchronizing|Reconnecting|Disconnected)/.test(node.text),
+        /^(Connected|Synchronizing|Reconnecting|Disconnected) ·/.test(node.text),
     );
     const error = panel.find((node) => node.type === 'text' && node.tone === 'error');
     const rate = (await desktop.music.webContents
@@ -109,7 +111,7 @@ export async function runRoomPeer(
       code: room?.type === 'code' ? room.text : undefined,
       participants: participants?.type === 'participants' ? participants.participants.length : 0,
       queue: queue?.type === 'text' ? Number(queue.text.match(/\d+/)?.[0]) : 0,
-      sync: sync?.type === 'text' ? sync.text : '',
+      sync: sync?.type === 'text' ? sync.text : room ? '' : 'Disconnected',
       error: error?.type === 'text' ? error.text : undefined,
     };
     if (!stopped) await writeFile(path, JSON.stringify(report));
@@ -124,7 +126,7 @@ export async function runRoomPeer(
     stopped = true;
     clearInterval(timer);
   });
-  action(plugins, overlay, 'Room code', code);
+  action(plugins, overlay, 'Invite or room code', input);
   action(plugins, overlay, 'Join room');
   await waitFor(
     () => nodes(overlay).some((node) => node.type === 'code' && node.text === code),
@@ -140,6 +142,7 @@ export async function runRoomsSmoke(
   music: MusicContext,
   plugins: PluginHost,
   overlay: OverlayRegistry,
+  internet = false,
 ): Promise<void> {
   await prepare(desktop, plugins);
   await desktop.music.webContents.loadURL(`https://music.youtube.com/watch?v=${firstTrack}`);
@@ -159,18 +162,40 @@ export async function runRoomsSmoke(
       Math.abs((music.getState().track?.position ?? 0) - 20) < 0.5,
     'host ready with queue and paused position',
   );
-  action(plugins, overlay, 'Create room');
-  await waitFor(() => nodes(overlay).some((node) => node.type === 'code'), 'create room from app');
+  action(plugins, overlay, internet ? 'Start internet room' : 'Create room');
+  await waitFor(
+    () => nodes(overlay).some((node) => node.type === 'code'),
+    'create room from app',
+    internet ? 100000 : 40000,
+  );
   const codeNode = nodes(overlay).find((node) => node.type === 'code');
   assert(codeNode?.type === 'code');
   const code = codeNode.text;
+  let invite: string | undefined;
+  const originalClipboard = internet ? await clipboard.readText() : undefined;
+  if (internet) {
+    action(plugins, overlay, 'Copy invite');
+    await waitFor(
+      async () => (await clipboard.readText()).startsWith('ytmusic-plus://room?'),
+      'copy full invite',
+    );
+    invite = await clipboard.readText();
+    const parsed = parseRoomInvite(invite);
+    assert.equal(parsed.code, code);
+    assert.equal(parsed.kind, 'peerjs');
+    if (parsed.kind === 'peerjs') assert(/^ytmp-/.test(parsed.peerId));
+    await clipboard.writeText(originalClipboard!);
+    console.log(
+      'P2P_INVITE_OK: PeerJS host; copied invite contains peer ID, room code and private token',
+    );
+  }
   const peerPath = join(app.getPath('userData'), 'room-peer', 'room-peer-state.json');
   const environment = { ...process.env };
   delete environment.ELECTRON_RUN_AS_NODE;
   const args = [
     ...(app.isPackaged ? [] : [app.getAppPath()]),
     '--smoke-test',
-    `--rooms-peer=${code}`,
+    invite ? `--rooms-invite=${Buffer.from(invite).toString('base64url')}` : `--rooms-peer=${code}`,
     '--safe-renderer',
   ];
   const child = spawn(process.execPath, args, {
@@ -194,10 +219,10 @@ export async function runRoomsSmoke(
     output += String(error);
     exit = 1;
   });
-  const peer = async (): Promise<PeerReport> => {
+  const peer = async (requireRoom = true): Promise<PeerReport> => {
     if (exit !== undefined) throw new Error(`Peer exited (${exit}): ${output}`);
     const report = JSON.parse(await readFile(peerPath, 'utf8')) as PeerReport;
-    assert(Date.now() - report.time < 5000 && report.code === code);
+    assert(Date.now() - report.time < 5000 && (!requireRoom || report.code === code));
     return report;
   };
   try {
@@ -273,10 +298,17 @@ export async function runRoomsSmoke(
       () => nodes(overlay).some((node) => node.type === 'button' && node.label === 'Create room'),
       'host leaves room',
     );
-    await waitFor(
-      async () => (await peer()).participants === 1,
-      'remaining listener receives host transfer',
-    );
+    if (internet) {
+      await waitFor(
+        async () => /Reconnecting|Disconnected/.test((await peer(false)).sync),
+        'leaving host closes its P2P connections',
+      );
+      console.log('P2P_CLEANUP_OK: leaving host closes WebRTC and signaling connections');
+    } else
+      await waitFor(
+        async () => (await peer()).participants === 1,
+        'remaining listener receives host transfer',
+      );
     await plugins.disable(pluginId);
     assert.equal(
       await desktop.music.webContents.executeJavaScript(
@@ -286,7 +318,9 @@ export async function runRoomsSmoke(
       'disable restores normal playback rate',
     );
     console.log(
-      'ROOMS_OK: create/join; native playback, pause, seek, shared queue and exact song; leave/host transfer; disable cleanup',
+      internet
+        ? 'P2P_ROOMS_OK: PeerJS WebRTC; pasted invite; two native players synchronize song, play/pause, seek and queue; host cleanup'
+        : 'ROOMS_OK: create/join; native playback, pause, seek, shared queue and exact song; leave/host transfer; disable cleanup',
     );
   } catch (error) {
     console.error('ROOMS_DIAGNOSTIC', {
@@ -297,6 +331,7 @@ export async function runRoomsSmoke(
     });
     throw error;
   } finally {
+    if (originalClipboard !== undefined) await clipboard.writeText(originalClipboard);
     child.kill();
     await plugins.disable(pluginId);
     await command(desktop, { type: 'pause' }).catch(() => {});

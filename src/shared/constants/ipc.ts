@@ -1,4 +1,7 @@
 export const IPC = {
+  peerCommand: 'ytm:peer-command',
+  peerReply: 'ytm:peer-reply',
+  peerState: 'ytm:peer-state',
   toastMessage: 'ytm:toast-message',
   app: 'ytm:app-request',
   snapshot: 'ytm:snapshot',

@@ -29,7 +29,18 @@ export interface NativeServices {
     message: RoomClientMessage,
     callback: (snapshot: RoomSnapshot) => void,
   ): Promise<void>;
-  roomDisconnect(id: string): void;
+  roomDisconnect(id: string): Promise<void>;
+  roomStartInternet(
+    id: string,
+    name: string,
+    callback: (snapshot: RoomSnapshot) => void,
+  ): Promise<void>;
+  roomJoinInvite(
+    id: string,
+    invite: string,
+    name: string,
+    callback: (snapshot: RoomSnapshot) => void,
+  ): Promise<void>;
   themesList(): Promise<{ id: string; name: string }[]>;
   themesSelect(id: string): Promise<void>;
   themesImport(): Promise<void>;
@@ -168,8 +179,7 @@ export class CapabilityBroker {
         return;
       case 'clipboard':
         require('clipboard');
-        clipboard.writeText(request.text);
-        return;
+        return clipboard.writeText(request.text);
       case 'filesystem.import': {
         require('filesystem');
         const selection = await dialog.showOpenDialog(this.window, {
@@ -195,8 +205,21 @@ export class CapabilityBroker {
         );
       case 'rooms.disconnect':
         require('rooms');
-        this.native.roomDisconnect?.(manifest.id);
-        return;
+        return this.native.roomDisconnect?.(manifest.id);
+      case 'rooms.startInternet':
+        require('rooms');
+        if (!this.native.roomStartInternet)
+          throw new Error('Internet rooms are unavailable on this host');
+        return this.native.roomStartInternet(manifest.id, request.name, (snapshot) =>
+          this.sendEvent(manifest.id, 'roomUpdated', snapshot),
+        );
+      case 'rooms.joinInvite':
+        require('rooms');
+        if (!this.native.roomJoinInvite)
+          throw new Error('Internet invites are unavailable on this host');
+        return this.native.roomJoinInvite(manifest.id, request.invite, request.name, (snapshot) =>
+          this.sendEvent(manifest.id, 'roomUpdated', snapshot),
+        );
       case 'blocking.status':
         require('web.blocking');
         return this.native.blockingStatus?.(manifest.id);

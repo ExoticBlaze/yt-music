@@ -25,6 +25,10 @@ async function fixture() {
   };
   const getPlaybackState = vi.fn().mockResolvedValue(state);
   const send = vi.fn().mockResolvedValue(undefined);
+  const startInternet = vi.fn().mockResolvedValue(undefined);
+  const joinInvite = vi.fn().mockResolvedValue(undefined);
+  const disconnect = vi.fn().mockResolvedValue(undefined);
+  const writeText = vi.fn().mockResolvedValue(undefined);
   const actions = new Map<string, (value?: string | number | boolean) => void | Promise<void>>();
   let panel: PanelDefinition | undefined;
   let updateRoom!: (room: RoomSnapshot) => void | Promise<void>;
@@ -48,6 +52,9 @@ async function fixture() {
     player: { getPlaybackState },
     rooms: {
       send,
+      startInternet,
+      joinInvite,
+      disconnect,
       onUpdate: (callback: typeof updateRoom) => {
         updateRoom = callback;
         return () => {};
@@ -70,6 +77,7 @@ async function fixture() {
     },
     events: { on: () => () => {} },
     commands: { register: vi.fn() },
+    clipboard: { writeText },
     onCleanup: vi.fn(),
   } as unknown as PluginContext;
   await plugin.activate(context);
@@ -78,7 +86,20 @@ async function fixture() {
     if (!node || !('action' in node)) throw new Error(`Missing action: ${label}`);
     await actions.get(node.action)!(value);
   };
-  return { ids, state, getPlaybackState, send, room, updateRoom, action, panel: () => panel };
+  return {
+    ids,
+    state,
+    getPlaybackState,
+    send,
+    startInternet,
+    joinInvite,
+    disconnect,
+    writeText,
+    room,
+    updateRoom,
+    action,
+    panel: () => panel,
+  };
 }
 
 describe('Listen Together shared queue', () => {
@@ -135,5 +156,54 @@ describe('Listen Together shared queue', () => {
     resolveRead(f.state);
     await pending;
     expect(f.send).not.toHaveBeenCalled();
+  });
+});
+
+describe('Listen Together internet controls', () => {
+  it('starts through the managed host capability and copies the full P2P invite', async () => {
+    const f = await fixture();
+    await f.action('Start internet room');
+    expect(f.startInternet).toHaveBeenCalledExactlyOnceWith('Music lover');
+    const invite =
+      'ytmusic-plus://room?peer=ytmp-12345678-1234-4234-8234-123456789abc&code=ABC-123&secret=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    await f.updateRoom({
+      ...f.room,
+      internetHost: true,
+      transport: 'peerjs',
+      invite,
+    });
+    await f.action('Copy invite');
+    expect(f.writeText).toHaveBeenCalledExactlyOnceWith(invite);
+  });
+  it('preserves a pasted invite instead of uppercasing its address and uses automatic joining', async () => {
+    const f = await fixture();
+    const invite =
+      'ytmusic-plus://room?relay=wss%3A%2F%2Frooms.example.com%2F%3Fkey%3DCaseSensitive&code=ABC-123';
+    await f.action('Invite or room code', invite);
+    await f.action('Join room');
+    expect(f.joinInvite).toHaveBeenCalledExactlyOnceWith(invite, 'Music lover');
+    expect(f.send).not.toHaveBeenCalled();
+  });
+  it('prevents duplicate startup and offers cancellation while the P2P connection is pending', async () => {
+    const f = await fixture();
+    let resolve!: () => void;
+    f.startInternet.mockImplementation(
+      () =>
+        new Promise<void>((done) => {
+          resolve = done;
+        }),
+    );
+    const pending = f.action('Start internet room');
+    await vi.waitFor(() => expect(f.startInternet).toHaveBeenCalledTimes(1));
+    expect(f.panel()?.nodes).toContainEqual(
+      expect.objectContaining({ label: 'Start internet room', disabled: true }),
+    );
+    await f.action('Start internet room');
+    expect(f.startInternet).toHaveBeenCalledTimes(1);
+    await f.action('Cancel');
+    expect(f.disconnect).toHaveBeenCalledTimes(1);
+    resolve();
+    await pending;
+    expect(f.panel()?.nodes).not.toContainEqual(expect.objectContaining({ label: 'Cancel' }));
   });
 });

@@ -67,6 +67,20 @@ export function renderSettings(
             }),
           ),
         ),
+        field(
+          'Automatic updates',
+          toggle(settings.general.autoUpdates, (value) =>
+            update((next) => {
+              next.general.autoUpdates = value;
+            }),
+          ),
+          'Check GitHub Releases on startup and every six hours. Updates download automatically; you choose when to restart.',
+        ),
+        button(
+          'Check for updates',
+          () => request({ type: 'developer', action: 'checkUpdates' }),
+          'button secondary',
+        ),
       );
       break;
     case 'Appearance': {
@@ -245,7 +259,7 @@ export function renderSettings(
       content.append(
         sectionTitle(
           'Good music is better together',
-          'The default local relay starts when you create or join a room. Friends on other computers need the same reachable wss:// relay. Audio stays in each person’s session.',
+          'For friends, use Start internet room and Copy invite in Listen Together. Paste an invite to join without changing these settings. The relay URL below is for local rooms or a separately hosted relay. Audio stays in each person’s session.',
         ),
       );
       const server = input(settings.rooms.server, (value) =>
@@ -333,7 +347,7 @@ export function renderSettings(
         element(
           'p',
           'muted',
-          'Release updates require a configured HTTPS feed and signed application packages.',
+          'Updates come from YTMusic+ GitHub Releases. After choosing Later, check again to restart and install the downloaded update.',
         ),
       );
       break;

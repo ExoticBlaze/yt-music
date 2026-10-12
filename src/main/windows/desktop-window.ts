@@ -251,8 +251,11 @@ export class DesktopWindow {
     this.window.show();
     this.window.focus();
   }
-  quit(): void {
+  prepareQuit(): void {
     this.quitting = true;
+  }
+  quit(): void {
+    this.prepareQuit();
     this.window.close();
   }
 }

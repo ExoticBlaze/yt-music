@@ -1,5 +1,3 @@
-import { randomInt, randomUUID } from 'node:crypto';
-import type WebSocket from 'ws';
 import {
   canControl,
   type RoomClientMessage,
@@ -9,9 +7,14 @@ import {
   type RoomServerMessage,
 } from '../src/shared/types/rooms';
 
+export interface RoomSocket {
+  readonly readyState: number;
+  send(message: string): void;
+  close(code?: number, reason?: string): void;
+}
 interface Member {
   participant: Participant;
-  socket: WebSocket;
+  socket: RoomSocket;
   token: string;
   expiry?: NodeJS.Timeout;
 }
@@ -25,9 +28,9 @@ const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const maxRooms = 1000;
 export class RoomRegistry {
   private rooms = new Map<string, Room>();
-  private sockets = new Map<WebSocket, { room: Room; member: Member }>();
+  private sockets = new Map<RoomSocket, { room: Room; member: Member }>();
   constructor(private readonly now = () => Date.now()) {}
-  private send(socket: WebSocket, message: RoomServerMessage): void {
+  private send(socket: RoomSocket, message: RoomServerMessage): void {
     if (socket.readyState === 1) socket.send(JSON.stringify(message));
   }
   private snapshot(room: Room, member: Member): RoomSnapshot {
@@ -46,7 +49,7 @@ export class RoomRegistry {
     for (const member of room.members.values())
       this.send(member.socket, { type: 'snapshot', snapshot: this.snapshot(room, member) });
   }
-  receive(socket: WebSocket, message: RoomClientMessage): void {
+  receive(socket: RoomSocket, message: RoomClientMessage): void {
     try {
       if (message.type === 'ping') {
         this.send(socket, { type: 'pong', sentAt: message.sentAt, serverTime: this.now() });
@@ -57,9 +60,10 @@ export class RoomRegistry {
         if (this.rooms.size >= maxRooms) throw new Error('Relay room capacity reached');
         let code: string;
         do {
-          const random = Array.from({ length: 6 }, () => alphabet[randomInt(alphabet.length)]).join(
-            '',
-          );
+          const random = Array.from(
+            crypto.getRandomValues(new Uint8Array(6)),
+            (value) => alphabet[value & 31],
+          ).join('');
           code = `${random.slice(0, 3)}-${random.slice(3)}`;
         } while (this.rooms.has(code));
         const room: Room = {
@@ -192,10 +196,10 @@ export class RoomRegistry {
       });
     }
   }
-  private add(room: Room, socket: WebSocket, name: string, role: Participant['role']): void {
+  private add(room: Room, socket: RoomSocket, name: string, role: Participant['role']): void {
     const member: Member = {
-      participant: { id: randomUUID(), name, role },
-      token: randomUUID(),
+      participant: { id: crypto.randomUUID(), name, role },
+      token: crypto.randomUUID(),
       socket,
     };
     room.members.set(member.participant.id, member);
@@ -207,13 +211,13 @@ export class RoomRegistry {
     });
     this.broadcast(room);
   }
-  disconnect(socket: WebSocket): void {
+  disconnect(socket: RoomSocket): void {
     const membership = this.sockets.get(socket);
     if (!membership) return;
     const { member } = membership;
     member.expiry = setTimeout(() => this.leave(socket), 30000);
   }
-  leave(socket: WebSocket): void {
+  leave(socket: RoomSocket): void {
     const membership = this.sockets.get(socket);
     if (!membership) return;
     const { room, member } = membership;

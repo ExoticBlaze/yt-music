@@ -79,6 +79,8 @@ export interface PluginContext {
   };
   rooms: {
     send(message: RoomClientMessage): Promise<void>;
+    startInternet(name: string): Promise<void>;
+    joinInvite(invite: string, name: string): Promise<void>;
     onUpdate(callback: (room: RoomSnapshot) => void | Promise<void>): Cleanup;
     disconnect(): Promise<void>;
   };

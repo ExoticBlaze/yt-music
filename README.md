@@ -22,7 +22,9 @@ npm start
 
 `npm run build` type-checks and bundles the application, sandbox preloads, UI, eight plugins, and relay server. Generated files are in `dist/`. Your normal Electron session persists in the application's user-data directory. There is no account or password handling in plugin code.
 
-To update an installed Windows copy, quit YTMusic+ from its tray menu and run the new `YTMusic+ Setup` installer. Building or reloading the source does not update the installed application. Check the running version in **Settings → General** or hover over the YTMusic+ logo.
+Installed copies check this project's [GitHub Releases](https://github.com/ExoticBlaze/yt-music/releases) shortly after startup and every six hours. New stable versions download in the background; choose **Restart and install** when you are ready. **Later** keeps your music playing; use **Settings → General → Check for updates** to install the downloaded update later. You can disable **Automatic updates** in General settings and check manually instead.
+
+Install the first updater-enabled `YTMusic+ Setup` installer manually to upgrade an older copy. Quit YTMusic+ from its tray menu before running it. Building or reloading the source does not update the installed application. Check the running version in **Settings → General** or hover over the YTMusic+ logo.
 
 ## Extensions included
 
@@ -74,9 +76,9 @@ For the packaged executable, append `--safe-renderer` to its shortcut target or 
 
 Shortcuts are customizable under Playback settings; conflicts are reported. Media keys, tray play/pause/next, notifications, back/forward navigation and close-to-tray are included. Media key registration can fail when another application owns the key; the website's native media-session handling remains available.
 
-## Listen Together relay
+## Listen Together
 
-See [LISTEN_TOGETHER.md](LISTEN_TOGETHER.md) for creating/joining rooms and [server/HOSTING.md](server/HOSTING.md) for internet setup. `npm run build:relay` produces a relay-only hosting package with a Render configuration; a public relay is not preconfigured by the desktop installer.
+Click **Start internet room → Copy invite** in Listen Together. Friends paste the full invite and click **Join room**, without manual relay settings or a hosting account. Version 1.4.4 uses bundled PeerJS to establish encrypted WebRTC data connections to the host. PeerJS Cloud handles signaling; the library's default STUN/TURN services help connect different networks. Keep the hosting app open. No tunnel executable or separate helper installation is needed. See [LISTEN_TOGETHER.md](LISTEN_TOGETHER.md) for usage and [PeerJS's connection FAQ](https://peerjs.com/client/faq) for network limitations.
 
 ```sh
 npm run server
@@ -84,7 +86,7 @@ npm run server
 
 The app automatically starts the bundled relay on `127.0.0.1:8787` when you create or join a room using the default URL. There is no separate server command required for a local room. Configure the relay URL, automatic-start option and display name under **Settings → Listen Together**. `npm run server` remains available for standalone hosting.
 
-For friends on other devices, deploy the relay behind a TLS reverse proxy, set `YTM_ROOM_HOST=0.0.0.0` and a suitable `YTM_ROOM_PORT` on that server, and use a `wss://` URL in each client. Plain `ws://` is accepted only for loopback addresses. The relay carries **no audio, media URLs, Google credentials or cookies**. Each participant needs independent access to the same track.
+For an optional permanent relay, [server/HOSTING.md](server/HOSTING.md) and `npm run build:relay` remain available. Deploy behind a TLS reverse proxy, set `YTM_ROOM_HOST=0.0.0.0` and a suitable `YTM_ROOM_PORT` on that server, and use the same `wss://` URL in each client. Plain `ws://` is accepted only for loopback addresses. Both P2P rooms and relays carry song IDs, names, roles and playback/queue timing, with **no audio, media URLs, Google credentials or cookies**. Each participant needs independent access to the same track.
 
 The room's shared queue starts with the host's already-loaded queue, mirrors observed video IDs and can be edited in the room panel. Queue pages expose entries beyond the first twenty; adding a song opens its page. Host changes to the website's queue are published when its items are present in the DOM. Followers open the exact video ID and playlist through normal website navigation. The wrapper does not synthesize YouTube's private queue requests; virtualized or inaccessible native queue items may not be observable. An unavailable exact track produces a synchronization error.
 
@@ -96,7 +98,7 @@ npm run package
 
 On Windows this produces an NSIS installer and `release/win-unpacked/YTMusic+.exe`. `npm run package:dir` builds only the unpacked app. macOS DMG and Linux AppImage targets are configured; build and sign on the appropriate platform before distributing them.
 
-The development installer is unsigned. Release maintainers must configure signing credentials, a publisher identity, and an HTTPS update feed. The updater is implemented with downloads and restarts explicitly confirmed by the user; no feed or release is published by this repository. See [DEVELOPMENT.md](DEVELOPMENT.md).
+The GitHub update feed is built into packaged copies. Pushing a matching `v<version>` tag runs the Windows release workflow, which builds the installer, blockmap and `latest.yml` and uploads them to a draft GitHub Release. Review and publish that draft to make the update available. The development installer is unsigned; release maintainers can configure signing credentials before distribution. Ordinary `npm run package` builds locally without publishing. See [DEVELOPMENT.md](DEVELOPMENT.md) for the release steps and platform requirements.
 
 ## Verify
 
@@ -113,6 +115,8 @@ Crossfade smoke checks also exercise the actual settings slider, saved duration 
 Ad Blocker checks verify filtering before the first inline player script, fetch/JSON/XHR/config response paths, native ad skipping, paused ads, the selected song and saved volume, and enable/disable cleanup. The live checks start two real songs and play a native queue item. `npm start -- --smoke-test --adblock-only --safe-renderer` runs this focused scenario. These checks use the separate smoke profile and muted audio output.
 
 `npm start -- --smoke-test --rooms-only --safe-renderer` verifies Listen Together with two independent app processes and separate test profiles. Both native players open the same real song and synchronize paused positions, play/pause, seek and shared queue track changes. It also checks initial queue publication, leave/host transfer and disable cleanup.
+
+`npm start -- --smoke-test --internet-rooms-only --safe-renderer` runs the two-player scenario through PeerJS Cloud signaling and real WebRTC data channels, using a copied/pasted full invite. It checks host shutdown disconnects the guest. Unit tests cover token validation, listener/DJ permissions, reconnect identity, cancellation and retry. Both smoke processes run on one computer; different internet networks need their own connection check.
 
 Account login, subscriber-only playback, operating-system media keys/notifications and Discord presence with a real application ID require an interactive check on your machine. Google can restrict embedded authentication; this app respects those restrictions and does not alter authentication, extract streams, download music, or circumvent DRM.
 

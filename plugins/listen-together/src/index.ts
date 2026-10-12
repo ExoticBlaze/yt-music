@@ -1,6 +1,7 @@
 import type { YTMusicPlugin, RoomSnapshot, UINode } from '../../../plugin-sdk/index';
 import { emptyRoom, canControl } from '../../../src/shared/types/room-state';
 import { expectedPosition, calculateDrift } from '../../../client/synchronization';
+import { createRoomInvite, parseRoomInvite } from '../../../src/shared/types/room-invite';
 
 const plugin: YTMusicPlugin = {
   async activate(context) {
@@ -16,6 +17,9 @@ const plugin: YTMusicPlugin = {
     let lastSignature = '';
     let busy = false;
     let active = true;
+    let connecting = '';
+    let connectAttempt = 0;
+    let connectionError = '';
     let pendingTrack: { id: string; since: number } | null = null;
     let settings = (await context.settings.get()).rooms;
     const role = () =>
@@ -36,22 +40,65 @@ const plugin: YTMusicPlugin = {
         await context.ui.createToast(String(error));
       }
     };
-    const actions = {
-      create: context.ui.action(async () => {
-        await send({ type: 'create', name: settings.displayName });
-      }),
-      code: context.ui.action((value) => {
-        code = String(value).trim().toUpperCase();
-      }),
-      join: context.ui.action(async () => {
-        if (!/^[A-Z0-9]{3}-?[A-Z0-9]{3}$/.test(code)) {
-          await context.ui.createToast('Enter a six-character room code, such as ABC-123.');
-          return;
+    async function connectRoom(kind: 'internet' | 'create' | 'join'): Promise<void> {
+      if (connecting || room.code) return;
+      const attempt = ++connectAttempt;
+      connecting = kind === 'internet' ? 'Starting internet room…' : 'Connecting…';
+      connectionError = '';
+      await render();
+      try {
+        if (kind === 'internet') await context.rooms.startInternet(settings.displayName);
+        else if (kind === 'create')
+          await context.rooms.send({ type: 'create', name: settings.displayName });
+        else if (code.startsWith('ytmusic-plus:')) {
+          parseRoomInvite(code);
+          await context.rooms.joinInvite(code, settings.displayName);
+        } else {
+          const roomCode = code.toUpperCase();
+          if (!/^[A-Z0-9]{3}-?[A-Z0-9]{3}$/.test(roomCode))
+            throw new Error('Paste an invite or enter a six-character room code, such as ABC-123.');
+          await context.rooms.send({ type: 'join', code: roomCode, name: settings.displayName });
         }
-        await send({ type: 'join', code, name: settings.displayName });
+      } catch (error) {
+        if (active && attempt === connectAttempt) {
+          connectionError = error instanceof Error ? error.message : String(error);
+          await context.ui.createToast(connectionError);
+        }
+      } finally {
+        if (active && attempt === connectAttempt) {
+          connecting = '';
+          await render();
+        }
+      }
+    }
+    const actions = {
+      create: context.ui.action(() => connectRoom('create')),
+      internet: context.ui.action(() => connectRoom('internet')),
+      code: context.ui.action((value) => {
+        code = String(value).trim();
       }),
+      join: context.ui.action(() => connectRoom('join')),
       copy: context.ui.action(guarded(() => context.clipboard.writeText(room.code ?? ''))),
+      invite: context.ui.action(
+        guarded(async () => {
+          if (!room.code || (!room.invite && !room.inviteURL)) return;
+          await context.clipboard.writeText(
+            room.invite ?? createRoomInvite(room.inviteURL!, room.code),
+          );
+          await context.ui.createToast(
+            'Invite copied. Your friend can paste it into Listen Together and click Join room.',
+          );
+        }),
+      ),
+      cancel: context.ui.action(async () => {
+        ++connectAttempt;
+        connecting = '';
+        await context.rooms.disconnect();
+        room = emptyRoom();
+        await render();
+      }),
       leave: context.ui.action(async () => {
+        ++connectAttempt;
         await send({ type: 'leave' });
         await context.rooms.disconnect();
         room = emptyRoom();
@@ -176,23 +223,37 @@ const plugin: YTMusicPlugin = {
       } catch {}
       nodes.push({
         type: 'text',
-        text: localRelay
-          ? 'Local room on this computer. To invite friends on other computers, choose the same reachable wss:// relay in Settings → Listen Together.'
-          : `Room relay: ${relayHost}`,
+        text:
+          room.transport === 'peerjs' && room.code
+            ? room.internetHost
+              ? 'P2P room via PeerJS and WebRTC. Copy your invite for friends and keep this app open.'
+              : `WebRTC connection to the host${room.peerRoute === 'relay' ? ' · TURN fallback' : room.peerRoute === 'direct' ? ' · direct P2P' : ''}.`
+            : room.inviteURL
+              ? 'Connected through an internet relay. Copy an invite to bring friends.'
+              : localRelay
+                ? 'Start an internet room for friends, or create a room on this computer.'
+                : `Room relay: ${relayHost}`,
         tone: 'muted',
       });
       if (!room.code)
         nodes.push(
-          { type: 'button', label: 'Create room', primary: true, action: actions.create },
+          {
+            type: 'button',
+            label: 'Start internet room',
+            primary: true,
+            action: actions.internet,
+            disabled: !!connecting,
+          },
+          { type: 'button', label: 'Create room', action: actions.create, disabled: !!connecting },
           {
             type: 'input',
             id: 'room-code',
-            label: 'Room code',
+            label: 'Invite or room code',
             value: code,
-            placeholder: 'ABC-123',
+            placeholder: 'Paste your friend’s invite, or enter ABC-123',
             action: actions.code,
           },
-          { type: 'button', label: 'Join room', action: actions.join },
+          { type: 'button', label: 'Join room', action: actions.join, disabled: !!connecting },
         );
       else {
         nodes.push(
@@ -211,7 +272,15 @@ const plugin: YTMusicPlugin = {
               : 'Waiting for the host to play a song.',
             tone: 'muted',
           },
-          { type: 'button', label: 'Copy invite code', action: actions.copy },
+          room.invite || room.inviteURL
+            ? {
+                type: 'button',
+                label: 'Copy invite',
+                primary: true,
+                action: actions.invite,
+                disabled: room.connection !== 'Connected',
+              }
+            : { type: 'button', label: 'Copy invite code', action: actions.copy },
           { type: 'button', label: 'Leave room', action: actions.leave },
         );
         if (canControl(role(), 'playback', room.permissions))
@@ -293,7 +362,13 @@ const plugin: YTMusicPlugin = {
             },
           );
       }
-      if (room.error) nodes.push({ type: 'text', text: room.error, tone: 'error' });
+      if (connecting)
+        nodes.push(
+          { type: 'text', text: `${connecting} This can take up to a minute.`, tone: 'muted' },
+          { type: 'button', label: 'Cancel', action: actions.cancel },
+        );
+      if (connectionError || room.error)
+        nodes.push({ type: 'text', text: connectionError || room.error!, tone: 'error' });
       await context.ui.updatePanel({
         id: 'rooms',
         title: 'Listen Together',
@@ -459,6 +534,7 @@ const plugin: YTMusicPlugin = {
     }, 2000);
     context.onCleanup(async () => {
       active = false;
+      ++connectAttempt;
       clearInterval(timer);
       await context.rooms.disconnect().catch(() => {});
       if (room.code) await context.player.setPlaybackRate(1).catch(() => {});
@@ -476,7 +552,15 @@ const plugin: YTMusicPlugin = {
       name: 'Create Listen Together Room',
       execute: async () => {
         await open();
-        await send({ type: 'create', name: settings.displayName });
+        await connectRoom('create');
+      },
+    });
+    context.commands.register({
+      id: 'rooms.internet',
+      name: 'Start Internet Listen Together Room',
+      execute: async () => {
+        await open();
+        await connectRoom('internet');
       },
     });
     context.commands.register({

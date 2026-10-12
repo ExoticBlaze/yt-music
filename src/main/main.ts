@@ -18,6 +18,7 @@ import { appearanceCSS } from './settings/appearance';
 import { matchesShortcut } from './windows/shortcuts';
 import type { AppSnapshot } from '../shared/types/bridge';
 import { RoomService } from './networking/room-service';
+import { PeerWindowTransport } from './networking/peer-window-transport';
 import { DiscordRPC } from './presence/discord-rpc';
 import { ThemeService } from './settings/theme-service';
 import { UpdateService } from './updater/updater';
@@ -37,7 +38,15 @@ const smoke = process.argv.includes('--smoke-test');
 const roomPeerCode = smoke
   ? process.argv.find((value) => value.startsWith('--rooms-peer='))?.slice('--rooms-peer='.length)
   : undefined;
-if (smoke) app.setPath('userData', resolve('.smoke-data', ...(roomPeerCode ? ['room-peer'] : [])));
+const roomPeerInvite = smoke
+  ? process.argv
+      .find((value) => value.startsWith('--rooms-invite='))
+      ?.slice('--rooms-invite='.length)
+  : undefined;
+const roomPeerInput =
+  roomPeerCode ??
+  (roomPeerInvite ? Buffer.from(roomPeerInvite, 'base64url').toString('utf8') : undefined);
+if (smoke) app.setPath('userData', resolve('.smoke-data', ...(roomPeerInput ? ['room-peer'] : [])));
 if (!app.requestSingleInstanceLock()) app.quit();
 else
   void app
@@ -145,7 +154,11 @@ else
         logger,
         broadcast,
       );
-      const rooms = new RoomService(() => settings.get(), logger);
+      const rooms = new RoomService(
+        () => settings.get(),
+        logger,
+        (update) => new PeerWindowTransport(root, update),
+      );
       crossfade = new CrossfadeService(
         root,
         desktop.music.webContents,
@@ -170,7 +183,12 @@ else
         desktop.window,
         broadcast,
       );
-      const updater = new UpdateService(desktop.window, logger, (text) => overlay.toast(text));
+      const updater = new UpdateService(
+        desktop.window,
+        logger,
+        (text) => overlay.toast(text),
+        () => prepareShutdown(),
+      );
       const broker = new CapabilityBroker(
         music,
         player,
@@ -181,6 +199,9 @@ else
         {
           roomSend: (id, message, callback) => rooms.send(id, message, callback),
           roomDisconnect: (id) => rooms.disconnect(id),
+          roomStartInternet: (id, name, callback) => rooms.startInternet(id, name, callback),
+          roomJoinInvite: (id, invite, name, callback) =>
+            rooms.joinInvite(id, invite, name, callback),
           presence: async (id, clientId, activity) => {
             let rpc = presence.get(id);
             if (!rpc) {
@@ -206,7 +227,9 @@ else
       plugins.onDestroyed = (id) => {
         crossfade!.remove(id);
         blocker.remove(id);
-        rooms.disconnect(id);
+        void rooms
+          .disconnect(id)
+          .catch((error) => logger.log('listen-together', String(error), id));
         presence.get(id)?.close();
         presence.delete(id);
       };
@@ -278,6 +301,7 @@ else
         settingsChanged: () => {
           updateMediaKeys();
           updateMenu();
+          if (!smoke) updater.configure(settings.get().general.autoUpdates);
         },
       });
       desktop.music.webContents.on('did-finish-load', () => {
@@ -372,16 +396,18 @@ else
       });
       app.on('second-instance', () => desktop.show());
       app.on('activate', () => desktop.show());
-      let shuttingDown = false;
+      let shutdownTask: Promise<void> | undefined;
       let shutdownComplete = false;
-      app.on('before-quit', (event) => {
-        if (shutdownComplete) return;
-        event.preventDefault();
-        if (shuttingDown) return;
-        shuttingDown = true;
-        void (async () => {
+      const prepareShutdown = (): Promise<void> => {
+        if (shutdownTask) return shutdownTask;
+        updater.dispose();
+        shutdownTask = (async () => {
           try {
             await plugins.shutdown();
+          } catch (error) {
+            logger.log('application', String(error), undefined, 'error');
+          }
+          try {
             await rooms.close();
           } catch (error) {
             logger.log('application', String(error), undefined, 'error');
@@ -392,10 +418,15 @@ else
             globalShortcut.unregisterAll();
             player.dispose();
             shutdownComplete = true;
-            if (!desktop.window.isDestroyed()) desktop.quit();
-            app.quit();
+            desktop.prepareQuit();
           }
         })();
+        return shutdownTask;
+      };
+      app.on('before-quit', (event) => {
+        if (shutdownComplete) return;
+        event.preventDefault();
+        void prepareShutdown().then(() => app.quit());
       });
       await desktop.load();
       await plugins.scan();
@@ -403,13 +434,23 @@ else
       broadcast();
       desktop.loadMusic();
       logger.log('application', 'YTMusic+ started');
+      if (!smoke) updater.configure(settings.get().general.autoUpdates);
       if (smoke) {
-        if (roomPeerCode) {
-          await runRoomPeer(desktop, music, plugins, overlay, roomPeerCode);
+        if (roomPeerInput) {
+          await runRoomPeer(desktop, music, plugins, overlay, roomPeerInput);
           return;
         }
-        if (process.argv.includes('--rooms-only')) {
-          await runRoomsSmoke(desktop, music, plugins, overlay);
+        if (
+          process.argv.includes('--rooms-only') ||
+          process.argv.includes('--internet-rooms-only')
+        ) {
+          await runRoomsSmoke(
+            desktop,
+            music,
+            plugins,
+            overlay,
+            process.argv.includes('--internet-rooms-only'),
+          );
           app.quit();
           return;
         }
